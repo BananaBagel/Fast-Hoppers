@@ -78,7 +78,7 @@ jobs:
       # here — it would fail at release, long after the mistake. Doing it in its own job runs it
       # once for the whole matrix instead of once per target.
       - name: Run datagen
-        run: ./gradlew datagenAll
+        run: bash .github/scripts/gradle-retry.sh datagenAll
 
       # Committed output going stale is the failure this is guarding against, so say so plainly
       # rather than letting a silent difference ride into a release.
@@ -165,12 +165,12 @@ jobs:
       # Runs before the build so a regression stops this target before it produces a jar.
       - name: Run gametests
         if: inputs.gametest
-        run: ./gradlew :${{ matrix.target }}:runGametest
+        run: bash .github/scripts/gradle-retry.sh :${{ matrix.target }}:runGametest
 
       # No --no-daemon: setup-gradle drives the daemon for its caching and reporting, and
       # the runner is torn down after the job anyway.
       - name: Build with Gradle
-        run: ./gradlew :${{ matrix.target }}:buildAndCollect
+        run: bash .github/scripts/gradle-retry.sh :${{ matrix.target }}:buildAndCollect
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

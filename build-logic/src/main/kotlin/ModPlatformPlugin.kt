@@ -116,6 +116,7 @@ abstract class ModPlatformPlugin @Inject constructor() : Plugin<Project> {
 			}
 		}
 
+		demoteMirrorRepositories()
 		configureFletchingTable(ctx)
 		registerGenerateManifestTask(ctx)
 		configureJarTask(ctx)
@@ -129,6 +130,39 @@ abstract class ModPlatformPlugin @Inject constructor() : Plugin<Project> {
 		if (envTrue("PUB_MAVEN_ENABLE")) {
 			configureMavenPublishing(ctx)
 		}
+	}
+
+	/**
+	 * Moves the small self-hosted mod mavens to the back of the repository list.
+	 * <p>
+	 * The Stonecutter/fletching-table plugins inject their own maven ahead of anything the build
+	 * scripts declare, so it was being asked for every artifact in the graph before Maven Central
+	 * ever saw the request — including things like {@code com.fasterxml:oss-parent}, which it will
+	 * never host. Gradle stops at the first repository that has an artifact, so demoting these
+	 * means they are only contacted for what genuinely lives on them.
+	 * <p>
+	 * That matters because a 404 is recoverable but a transport failure is not: when the host did
+	 * not respond mid-resolution, Gradle aborted the whole configuration rather than falling
+	 * through to the next repository, and every target in CI failed at once.
+	 */
+	private fun Project.demoteMirrorRepositories() {
+		val demoted = repositories.withType<MavenArtifactRepository>()
+			.filter { it.url.host in MIRROR_HOSTS }
+
+		if (demoted.isEmpty()) return
+
+		// Removed and re-added rather than sorted: RepositoryHandler is an ordered list, and
+		// appending is the only reordering primitive it exposes.
+		repositories.removeAll(demoted.toSet())
+		repositories.addAll(demoted)
+	}
+
+	private companion object {
+		/**
+		 * Hosts that serve a handful of build-tooling artifacts and nothing else worth querying
+		 * first. Matched on host so both the releases and snapshots paths are covered.
+		 */
+		val MIRROR_HOSTS = setOf("maven.kikugie.dev")
 	}
 
 	private fun Project.configureJava(ctx: Context) {
