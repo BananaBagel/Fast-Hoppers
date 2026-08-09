@@ -143,9 +143,18 @@ jobs:
           fi
 
   platform-release:
-    name: Release to Platforms
+    name: Publish ${{ matrix.target }}
     runs-on: ubuntu-latest
-    needs: prepare
+    # Waits on github-release rather than running beside it, because the release body is where the
+    # changelog is read from — so the platforms carry whatever the GitHub release actually says,
+    # including hand edits made to it, rather than a separately generated copy that can drift.
+    # It also means nothing reaches Modrinth or CurseForge until the GitHub release exists.
+    #
+    # build is listed only for its targets output; github-release already depends on it.
+    needs: [build, github-release]
+    # Reads the release notes; the release itself was already cut by github-release.
+    permissions:
+      contents: read
     # Off unless the PUB_MODS_ENABLE repository variable is set to "true". Releases are
     # GitHub-only for now; this job is kept wired up so enabling Modrinth and CurseForge
     # later is a matter of setting that variable and the matching tokens, not rebuilding
@@ -155,8 +164,19 @@ jobs:
     # succeeded, so this job reports separately rather than failing the run.
     continue-on-error: true
 
+    # Mirrors the build matrix: each target publishes the jar it built, in parallel, and one
+    # upload failing leaves the other eleven alone. Running publishMods unqualified would instead
+    # configure and rebuild all twelve targets on a single runner.
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.build.outputs.targets) }}
+
     env:
       MOD_IS_RELEASE: true
+      # Without this the publish falls back to the placeholder mod.version and would offer the
+      # platforms 0.0.0 while the GitHub release carries the tag.
+      MOD_VERSION: ${{ github.ref_name }}
       PUB_DRY_RUN: ${{ vars.PUB_DRY_RUN }}
       PUB_MODS_ENABLE: ${{ vars.PUB_MODS_ENABLE }}
       PUB_MAVEN_ENABLE: ${{ vars.PUB_MAVEN_ENABLE }}
@@ -179,17 +199,26 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: build/libs/
+      # The built jars are deliberately not downloaded: publishMods uploads its own target's jar
+      # task output, so it rebuilds that one target and ignores anything sitting in build/libs.
+      # Fetching the merged bundle into all twelve jobs would be twelve wasted downloads.
 
-      - name: Download changelog
-        uses: actions/download-artifact@v4
-        with:
-          name: changelog
-          path: .
+      # publishMods reads CHANGELOG.md from the repository root while configuring, so the notes
+      # have to be on disk before Gradle starts. Taken from the release rather than from the
+      # git-cliff artifact so that editing the release description on GitHub is enough to change
+      # what Modrinth and CurseForge show — there is one changelog, and GitHub owns it.
+      - name: Fetch release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --json body --jq .body > CHANGELOG.md
+          # An empty body would silently publish a blank changelog to both platforms, which is
+          # tedious to correct afterwards on CurseForge in particular.
+          if [[ ! -s CHANGELOG.md ]]; then
+            echo "::error::Release $GITHUB_REF_NAME has no notes; refusing to publish a blank changelog."
+            exit 1
+          fi
+          echo "✓ Publishing with the GitHub release notes ($(wc -l < CHANGELOG.md) lines)."
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -202,15 +231,8 @@ jobs:
         with:
           gradle-version: wrapper
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      # No separate actions/cache step: setup-gradle above restores and saves the Gradle caches
+      # itself, and a second step over ~/.gradle duplicates that work and fights it on save.
 
       - name: Publish to Platforms
-        run: ./gradlew publishMods --stacktrace
+        run: bash .github/scripts/gradle-retry.sh :${{ matrix.target }}:publishMods --stacktrace

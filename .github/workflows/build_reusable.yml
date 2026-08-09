@@ -18,6 +18,9 @@ on:
       artifact-name:
         description: "Name of the merged build artifact"
         value: build-artifacts
+      targets:
+        description: "JSON array of Stonecutter targets, for callers that need to fan out over the same matrix"
+        value: ${{ jobs.targets.outputs.matrix }}
 
 jobs:
   targets:

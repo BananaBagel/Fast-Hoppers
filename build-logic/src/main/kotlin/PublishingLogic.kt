@@ -59,8 +59,7 @@ fun Project.configureMavenPublishing(ctx: Context) {
 }
 
 fun Project.configureModPublishing(ctx: Context) {
-	val releaseType = ReleaseType.of(
-		ctx.channelTag.substringAfter('-').substringBefore('.').ifEmpty { "stable" })
+	val releaseType = ReleaseType.of(ctx.releaseChannel)
 
 	extensions.configure<ModPublishExtension>("publishMods") {
 		val mrStaging = envTrue("PUB_MODRINTH_STAGING")
@@ -97,10 +96,20 @@ private fun ModPublishExtension.modrinth(
 	if (staging) apiEndpoint = "https://staging-api.modrinth.com/v2"
 
 	projectId = project.env("PUB_MODRINTH_PROJECT_ID")
-	environment = when (ctx.environment.lowercase()) {
+	// Modrinth draws distinctions the three-way mod.environment property cannot express — most
+	// usefully between SERVER_ONLY, which still runs in singleplayer via its integrated server,
+	// and DEDICATED_SERVER_ONLY, which does not. Any of its enum names may be given verbatim;
+	// the three coarse values stay supported and pick the sensible member of each family.
+	environment = when (val declared = ctx.environment.lowercase()) {
 		"client" -> ModrinthEnvironment.CLIENT_ONLY
 		"server" -> ModrinthEnvironment.SERVER_ONLY
-		else -> ModrinthEnvironment.CLIENT_AND_SERVER
+		"both" -> ModrinthEnvironment.CLIENT_AND_SERVER
+		else -> ModrinthEnvironment.entries.firstOrNull { it.name.equals(declared, ignoreCase = true) }
+			?: error(
+				"Unknown 'mod.environment' value '$declared'. Expected client, server, both, " +
+					"or a Modrinth environment name: " +
+					ModrinthEnvironment.entries.joinToString { it.name.lowercase() }
+			)
 	}
 
 	this.accessToken = accessToken
@@ -118,8 +127,20 @@ private fun ModPublishExtension.curseforge(
 	ctx: Context, additionalVersions: List<String>, accessToken: String?, deps: DependenciesConfig
 ) = curseforge {
 	projectId = project.env("PUB_CURSEFORGE_PROJECT_ID")
-	client = ctx.environment.lowercase() in setOf("client", "both")
-	server = ctx.environment.lowercase() in setOf("server", "both")
+
+	// CurseForge has only two flags, so the finer Modrinth names are matched loosely rather than
+	// exactly: server_only_client_optional sets both, server_only sets one. Anything naming
+	// neither side falls back to both, since an untagged upload is friendlier than a mistagged one.
+	val declared = ctx.environment.lowercase()
+	val declaresSide = "client" in declared || "server" in declared
+	client = declared == "both" || !declaresSide || "client" in declared
+	server = declared == "both" || !declaresSide || "server" in declared
+
+	// CurseForge's upload API defaults this to "text", which would render the git-cliff changelog
+	// as literal markdown source — visible '##' headings and '-' bullets. Modrinth needs no
+	// equivalent because its changelog field is always markdown. Stated explicitly rather than
+	// relying on the plugin's own default, since the wrong value is only noticed after publishing.
+	changelogType = "markdown"
 
 	this.accessToken = accessToken
 	minecraftVersions.addAll(listOf(ctx.currentMcVersion) + additionalVersions)

@@ -87,6 +87,40 @@ class Context(
 	val fullVersion: String by lazy { "$baseVersion-${loader.id}+$currentMcVersion$snapshotSuffix" }
 	val basicVersion: String by lazy { "$baseVersion$snapshotSuffix" }
 
+	/**
+	 * The release channel to publish under: `stable`, `beta` or `alpha`.
+	 *
+	 * Derived from the SemVer prerelease part of [modVersion], which on a release is the git tag —
+	 * so the tag stays the only thing that decides what a release is, exactly as it already decides
+	 * what a release is called. `mod.channel_tag` still wins if it is set, for the case where a
+	 * version number and its channel genuinely need to disagree.
+	 *
+	 * Mapping is on the first prerelease identifier with its digits stripped, so `-b1`, `-beta.2`
+	 * and `-rc1` all land on `beta` without needing an entry each:
+	 * ```
+	 * 1.0.0              -> stable
+	 * 1.0.0-b1           -> beta
+	 * 1.0.0-beta.2       -> beta
+	 * 1.0.0-rc1          -> beta
+	 * 1.0.0-a1           -> alpha
+	 * 1.0.0-dev.g1234567 -> alpha
+	 * ```
+	 * An unrecognised prerelease falls back to `beta` rather than `stable`: whatever `1.0.0-wip`
+	 * was meant to mean, it was not "finished".
+	 */
+	val releaseChannel: String by lazy {
+		val prerelease = channelTag.removePrefix("-").ifEmpty { modVersion.substringAfter('-', "") }
+		val identifier = prerelease.split('.', '-').firstOrNull().orEmpty()
+			.trimEnd { it.isDigit() }
+			.lowercase()
+
+		when (identifier) {
+			"" -> "stable"
+			"a", "alpha", "dev", "snapshot" -> "alpha"
+			else -> "beta"
+		}
+	}
+
 	val publishAdditionalVersions: List<String> by lazy {
 		project.sc.properties.rawOrNull("publish", "additionalVersions")?.to<List<String>>().orEmpty()
 	}
