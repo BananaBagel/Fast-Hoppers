@@ -9,8 +9,6 @@ build/
 
 run/
 
-.sc_active_version
-
 ### IntelliJ IDEA ###
 .idea/modules.xml
 .idea/jarRepositories.xml
