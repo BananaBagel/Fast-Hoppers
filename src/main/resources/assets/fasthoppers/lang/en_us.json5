@@ -1,0 +1,8 @@
+{
+  /*? < 1.21.11 {*/"gamerule.hopperTransferDelay" /*?} >= 1.21.11 {*//*"gamerule.fasthoppers.hopper_transfer_delay" *//*?}*/: "Hopper Transfer Delay",
+  /*? < 1.21.11 {*/"gamerule.hopperTransferDelay.description" /*?} >= 1.21.11 {*//*"gamerule.fasthoppers.hopper_transfer_delay.description" *//*?}*/: "The number of ticks it takes for a hopper to transfer an item. A lower value means faster speeds.",
+  /*? < 1.21.11 {*/"gamerule.hopperTransferDelay.value" /*?} >= 1.21.11 {*//*"gamerule.fasthoppers.hopper_transfer_delay.value" *//*?}*/: "Hopper Transfer Delay: %s ticks",
+  /*? < 1.21.11 {*/"gamerule.hopperMinecartTransferDelay" /*?} >= 1.21.11 {*//*"gamerule.fasthoppers.hopper_minecart_transfer_delay" *//*?}*/: "Hopper Minecart Transfer Delay",
+  /*? < 1.21.11 {*/"gamerule.hopperMinecartTransferDelay.description" /*?} >= 1.21.11 {*//*"gamerule.fasthoppers.hopper_minecart_transfer_delay.description" *//*?}*/: "The number of ticks it takes for a hopper minecart to transfer an item. A lower value means faster speeds.",
+  /*? < 1.21.11 {*/"gamerule.hopperMinecartTransferDelay.value" /*?} >= 1.21.11 {*//*"gamerule.fasthoppers.hopper_minecart_transfer_delay.value" *//*?}*/: "Hopper Minecart Transfer Delay: %s ticks"
+}

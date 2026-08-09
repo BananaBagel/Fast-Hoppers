@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "environment": "fasthoppers:transfer_delay_23",
+  "function": "fasthoppers:minecart_chain_delay_23",
+  "max_ticks": 1755,
+  "structure": "fasthoppers:hopper_minecart_chain"
+}

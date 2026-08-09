@@ -1,0 +1,14 @@
+name: build
+on: [ push, pull_request ]
+
+# Twelve targets is a lot of runner time to spend on a commit that has already been
+# superseded, so a newer push to the same ref cancels the one in flight.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # No gametests here: this is a build-and-artifact check. The suite runs on release,
+    # where a regression is worth blocking.
+    uses: ./.github/workflows/build_reusable.yml

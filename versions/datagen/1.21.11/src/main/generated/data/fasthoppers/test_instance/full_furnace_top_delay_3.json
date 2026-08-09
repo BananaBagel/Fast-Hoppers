@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "environment": "fasthoppers:transfer_delay_3",
+  "function": "fasthoppers:full_furnace_top_delay_3",
+  "max_ticks": 273,
+  "structure": "fasthoppers:full_furnace_top"
+}

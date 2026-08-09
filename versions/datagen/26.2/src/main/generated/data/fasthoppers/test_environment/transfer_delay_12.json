@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:game_rules",
+  "rules": {
+    "fasthoppers:hopper_transfer_delay": 12
+  }
+}

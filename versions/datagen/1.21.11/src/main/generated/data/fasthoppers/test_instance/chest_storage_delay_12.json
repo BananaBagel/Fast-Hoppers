@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "environment": "fasthoppers:transfer_delay_12",
+  "function": "fasthoppers:chest_storage_delay_12",
+  "max_ticks": 941,
+  "structure": "fasthoppers:chest_storage"
+}

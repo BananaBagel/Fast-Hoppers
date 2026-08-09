@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "environment": "fasthoppers:transfer_delay_12",
+  "function": "fasthoppers:random_full_dropper_delay_12",
+  "max_ticks": 940,
+  "structure": "fasthoppers:random_full_dropper"
+}

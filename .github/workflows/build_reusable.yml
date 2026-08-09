@@ -1,0 +1,199 @@
+name: reusable-build
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: "Whether this is a release build"
+        type: boolean
+        default: false
+      gametest:
+        description: "Run the gametest suite before building"
+        type: boolean
+        default: false
+      version:
+        description: "Version to stamp on the build; defaults to a dev version off the commit SHA"
+        type: string
+        default: ''
+    outputs:
+      artifact-name:
+        description: "Name of the merged build artifact"
+        value: build-artifacts
+
+jobs:
+  targets:
+    name: Resolve Targets
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Read the target list out of settings.gradle.kts rather than duplicating it here, so
+      # adding a Minecraft version stays a one-line change in one file. Asking Gradle would
+      # be more authoritative, but configuring twelve Loom/moddev subprojects costs minutes;
+      # this costs seconds against the same source of truth.
+      - name: Resolve build matrix
+        id: resolve
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, re
+          source = open("settings.gradle.kts").read()
+          targets = [
+              f"{version}-{loader}"
+              for version, loaders in re.findall(r'match\("([^"]+)",([^)]*)\)', source)
+              for loader in re.findall(r'"([^"]+)"', loaders)
+          ]
+          if not targets:
+              raise SystemExit("No targets found in settings.gradle.kts")
+          print("matrix=" + json.dumps(targets))
+          PY
+
+  datagen:
+    name: Regenerate Datapacks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25
+          distribution: 'microsoft'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+
+      # Always regenerated rather than trusted from the repository. The 1.21.11+ targets read their
+      # tests from these datapacks, so a test added without datagenAll being re-run would not fail
+      # here — it would fail at release, long after the mistake. Doing it in its own job runs it
+      # once for the whole matrix instead of once per target.
+      - name: Run datagen
+        run: ./gradlew datagenAll
+
+      # Committed output going stale is the failure this is guarding against, so say so plainly
+      # rather than letting a silent difference ride into a release.
+      - name: Check committed datapacks are current
+        run: |
+          if ! git diff --quiet -- versions/datagen; then
+            echo "::error::Generated datapacks differ from what is committed. Run './gradlew datagenAll' and commit the result."
+            git diff --stat -- versions/datagen
+            exit 1
+          fi
+          echo "✓ Committed datapacks match datagen output."
+
+      - name: Upload datapacks
+        uses: actions/upload-artifact@v4
+        with:
+          name: datapacks
+          path: versions/datagen/
+          if-no-files-found: error
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: [targets, datagen]
+    runs-on: ubuntu-latest
+
+    strategy:
+      # One broken target must not hide the state of the other eleven.
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.matrix) }}
+
+    env:
+      MOD_IS_RELEASE: ${{ inputs.release }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25
+          distribution: 'microsoft'
+
+      # Restores and saves the Gradle caches itself, selectively. A separate actions/cache
+      # step over ~/.gradle would duplicate that work and fight this one on save.
+      #
+      # Splitting by target is what keeps this affordable: the Actions cache is capped at
+      # 10 GB per repository, and one Minecraft version costs a few hundred MB of Loom or
+      # moddev cache on top of shared asset and maven pools. Twelve versions in one job
+      # would sit at the ceiling and evict each other every run.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+
+      # Overwrites the committed copies with the ones the datagen job just produced. They are
+      # verified identical there, so this is belt and braces rather than a fixup — it means a build
+      # never depends on the repository's copy being current.
+      - name: Download datapacks
+        uses: actions/download-artifact@v4
+        with:
+          name: datapacks
+          path: versions/datagen/
+
+      - name: Resolve mod version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ -n "$INPUT_VERSION" ]]; then
+            echo "MOD_VERSION=$INPUT_VERSION" >> "$GITHUB_ENV"
+          else
+            # Untagged build. The g prefix keeps this valid SemVer: a bare short SHA can be
+            # all digits with a leading zero, which is not a legal prerelease identifier.
+            echo "MOD_VERSION=0.0.0-dev.g${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+          fi
+
+      # Server gametests need no display, so nothing extra is required on the runner: the
+      # XVFB and network-synchronizer workarounds in Fabric's CI docs apply only to client
+      # gametests, which this mod does not have. One target per runner also means one
+      # Minecraft server at a time, well inside the runner's memory.
+      #
+      # Runs before the build so a regression stops this target before it produces a jar.
+      - name: Run gametests
+        if: inputs.gametest
+        run: ./gradlew :${{ matrix.target }}:runGametest
+
+      # No --no-daemon: setup-gradle drives the daemon for its caching and reporting, and
+      # the runner is torn down after the job anyway.
+      - name: Build with Gradle
+        run: ./gradlew :${{ matrix.target }}:buildAndCollect
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          # upload-artifact v4 requires a distinct name per job; these are merged below.
+          name: build-artifacts-${{ matrix.target }}
+          path: build/libs/
+          # buildAndCollect writes into a version-named subdirectory; an empty upload here
+          # means that layout changed and the release job would get nothing to attach.
+          if-no-files-found: error
+
+  merge:
+    name: Merge Artifacts
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Collapses the per-target uploads into the single build-artifacts bundle the release
+      # job downloads. They share a build/libs/<version>/ prefix, so the merge interleaves
+      # every loader's jars back into one directory.
+      - name: Merge build artifacts
+        uses: actions/upload-artifact/merge@v4
+        with:
+          name: build-artifacts
+          pattern: build-artifacts-*
+          delete-merged: true

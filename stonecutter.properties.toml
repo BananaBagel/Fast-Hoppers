@@ -1,0 +1,90 @@
+loomx.loom_version="1.16-SNAPSHOT"
+
+mod.id = "fasthoppers"
+mod.name = "Fast Hoppers"
+mod.group = "gay.bagel"
+# Permanent placeholder — never bump this. Real versions come from the git tag, which CI
+# passes in as MOD_VERSION; this is only what a local build with no tag calls itself.
+mod.version = "0.0.0"
+mod.channel_tag = ""
+mod.description = "make hoppers go vroom vroom"
+mod.authors = ["BananaBagel"]
+mod.inception_year = "2026"
+mod.license.name = "MIT"
+mod.license.url = "https://github.com/BananaBagel/Fast-Hoppers/blob/main/LICENSE.md"
+mod.license.dist = "repo"
+mod.sources_url = "https://github.com/BananaBagel/Fast-Hoppers"
+mod.homepage_url = "https://modrinth.com/project/Zs79Mkhy"
+mod.issues_url = "https://github.com/BananaBagel/Fast-Hoppers/issues"
+mod.donate_url = "https://ko-fi.com/bananabaagel"
+mod.discord_url = ""
+mod.environment = "server"   #"client", "server", "both"
+[[mod.pom.developers]]
+id = "bananabagel"
+name = "BananaBagel"
+url = "https://github.com/BananaBagel"
+
+[fabric]
+deps.fabric-loader = "0.19.2"
+
+[fabric."1.19.2"]
+deps.minecraft = "1.19.2"
+deps.fabric-api = "0.77.0+1.19.2"
+deps.modmenu = "4.1.2"
+
+[fabric."1.20.1"]
+deps.minecraft = "1.20.1"
+deps.fabric-api = "0.92.11+1.20.1"
+deps.modmenu = "7.2.2"
+
+[fabric."1.21.1"]
+deps.minecraft = "1.21.1"
+deps.fabric-api = "0.116.15+1.21.1"
+deps.modmenu = "11.0.3"
+
+[fabric."1.21.11"]
+deps.minecraft = "1.21.11"
+deps.fabric-api = "0.141.6+1.21.11"
+deps.modmenu = "17.0.0"
+
+[fabric."26.1.2"]
+deps.minecraft = "26.1.2"
+deps.fabric-api = "0.155.2+26.1.2"
+deps.modmenu = "18.0.0"
+publish.additionalVersions = ["26.1.1", "26.1"]
+
+[fabric."26.2"]
+deps.minecraft = "26.2"
+deps.fabric-api = "0.156.0+26.2"
+deps.modmenu = "20.0.1"
+
+[forge]
+
+[forge."1.19.2"]
+deps.minecraft = "1.19.2"
+deps.forge = "43.5.0"
+
+# No [forge."1.21.1"]: the legacyforge ModDevGradle plugin supports MinecraftForge 1.17 to
+# 1.20.1 only, so a 1.21.1 Forge target cannot be built with this toolchain. See task notes.
+[forge."1.20.1"]
+deps.minecraft = "1.20.1"
+deps.forge = "47.4.10"
+
+[neoforge]
+
+[neoforge."1.21.1"]
+deps.minecraft = "1.21.1"
+deps.neoforge = "21.1.213"
+
+[neoforge."1.21.11"]
+deps.minecraft = "1.21.11"
+deps.neoforge = "21.11.1-beta"
+
+[neoforge."26.1.2"]
+deps.minecraft = "26.1.2"
+deps.neoforge = "26.1.2.94"
+publish.additionalVersions = ["26.1.1", "26.1"]
+
+[neoforge."26.2"]
+deps.minecraft = "26.2"
+deps.neoforge = "26.2.0.43-beta"

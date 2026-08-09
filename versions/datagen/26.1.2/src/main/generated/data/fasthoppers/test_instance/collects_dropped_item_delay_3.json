@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:function",
+  "environment": "fasthoppers:transfer_delay_3",
+  "function": "fasthoppers:collects_dropped_item_delay_3",
+  "max_ticks": 400,
+  "structure": "fasthoppers:empty_3x9x3"
+}
